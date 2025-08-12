@@ -1,48 +1,20 @@
 # julia -p10
+# /cnl/xaos/julia-1.11.1/bin/julia -p50
 
+@everywhere MacSalk="SALK";
 
-@everywhere include("DDAfunctions.jl");
-
-using JLD2
-
-#import Pkg; Pkg.add("Distributed")
-using Distributed
-
-#=
-data:
-https://www.dropbox.com/scl/fi/rop1d4dutthshta3lyx69/S05__00_04__NoNoise.ascii?rlkey=h4ywfu8gy9vusap61m8nv8g4n&st=cq3k9elq&dl=0
-=#
-
-FN_part="S05__00_04";
-#FN_part="S05__03_07";
-NOISE_list=["NoNoise";"add15dB"];
-
-FN_NoNoise = @sprintf("%s__%s.ascii",FN_part,NOISE_list[1]);
-FN_15dB    = @sprintf("%s__%s.ascii",FN_part,NOISE_list[2]);
-
-if !isfile(FN_15dB)
-   X=readdlm(FN_NoNoise);
-
-   NrCH=size(X,2);
-
-   SNR=15;
-   Y=fill(NaN,size(X,1),NrCH);
-   for n_ch=1:NrCH
-       Y[:,n_ch]=add_noise(X[:,n_ch],SNR); 
-   end
-   
-   fid=open(FN_15dB,"w");
-   for k1=1:size(Y,1)
-       for k2=1:NrCH
-           @printf(fid,"%13.10f ",Y[k1,k2]);
-       end
-       @printf(fid,"\n");
-   end
-   close(fid);
-
-   X = nothing; 
-   Y = nothing; GC.gc();
+if MacSalk=="SALK"
+   @everywhere pfad_home="/home/claudia/";
 end
+if MacSalk=="MAC"
+   @everywhere pfad_home="/Users/claudia/";
+end
+
+@everywhere include(join([pfad_home "/TOOLS/DDAfunctions.jl"]));
+
+@everywhere SL="/";
+
+EDF_file = "patient1_S05__01_03.edf";
 
 NrCH=78;
 CH=1:NrCH;
@@ -57,195 +29,185 @@ DDAmodel=[[0 0 0 1];
           [1 1 1 1]];
 (MODEL, L_AF, DDAorder)=make_MODEL(DDAmodel);                         # DDA model
 
-DDA_DIR="DDA_Epilepsy"; dir_exist(DDA_DIR);
+DDA_DIR="DDA_patient1"; dir_exist(DDA_DIR);
 
-LIST=reduce(hcat,collect(combinations(CH,2)))';
+LIST=reduce(hcat,collect(combinations(CH,2)))';                       # original data
+LIST=vcat(LIST, LIST .+ NrCH);                                        # data with added noise
 DELTA=20;
 N=Int64(ceil(size(LIST,1)/DELTA));
 
-for n_FN=1:length(NOISE_list)
+FN_DATA = EDF_file;
+FN_DDA  = @sprintf("%s%s%s",DDA_DIR,SL,replace(EDF_file,".edf" => ".DDA"));
+FN_ALL = @sprintf("%s%s%s",DDA_DIR,SL,replace(EDF_file,".edf" => ".jld2"));
+if !isfile(FN_ALL)
+   @printf("%s\n",FN_ALL);
+
+   if !isfile(join([FN_DDA,"_ST"]))
+      if Sys.iswindows()
+         if !isfile("run_DDA_ASCII.exe")
+            run(`cp run_DDA_ASCII run_DDA_ASCII.exe`);
+         end
+
+         CMD=".\\run_DDA_ASCII.exe";
+      else
+         CMD="./run_DDA_ASCII";
+      end
+   
+      CMD = "$CMD -EDF";                                 
+      CMD = "$CMD -MODEL $(join(MODEL," "))"                    
+      CMD = "$CMD -TAU $(join(TAU," "))"                        
+      CMD = "$CMD -dm $dm -order $DDAorder -nr_tau $nr_delays"    
+      CMD = "$CMD -DATA_FN $FN_DATA -OUT_FN $FN_DDA"        
+      CMD = "$CMD -WL $WL -WS $WS";                            
+      CMD = "$CMD -SELECT 1 0 0 0";                               # ST-DDA               
     
-    FN_DATA = @sprintf("%s__%s.ascii",FN_part,NOISE_list[n_FN]);
-    FN_DDA  = @sprintf("%s%s%s__%s.DDA",DDA_DIR,SL,FN_part,NOISE_list[n_FN]);
+      if Sys.iswindows()
+         run(Cmd(string.(split(CMD, " "))));
+      else
+         run(`sh -c $CMD`);
+      end
 
-    FN_ALL = @sprintf("%s%s%s__%s.jld2",DDA_DIR,SL,FN_part,NOISE_list[n_FN]);
-    if !isfile(FN_ALL)
-       @printf("%s\n",FN_ALL);
-
-       if !isfile(join([FN_DDA,"_ST"]))
+      rm(@sprintf("%s.info",FN_DDA));     
+   end
+   
+   @sync @distributed for n_N=1:N
+       FN_DDAn=@sprintf("%s%s%s__%03d.DDA",DDA_DIR,SL,replace(EDF_file,".edf" => ""),n_N);
+       
+       n=collect(1:DELTA) .+ (n_N-1)*DELTA; n=n[n.<=size(LIST,1)];
+       LL1=LIST[n,:]; LL1=vcat(LL1'...)';
+   
+       if !isfile(join([FN_DDAn,"_CT"]))
           if Sys.iswindows()
              if !isfile("run_DDA_ASCII.exe")
                 run(`cp run_DDA_ASCII run_DDA_ASCII.exe`);
              end
+ 
+             CMD=".\\run_DDA_ASCII.exe";
+          else
+             CMD="./run_DDA_ASCII";
+          end
+
+          CMD = "$CMD -EDF";                                 
+          CMD = "$CMD -MODEL $(join(MODEL," "))"                    
+          CMD = "$CMD -TAU $(join(TAU," "))"                        
+          CMD = "$CMD -dm $dm -order $DDAorder -nr_tau $nr_delays"    
+          CMD = "$CMD -DATA_FN $FN_DATA -OUT_FN $FN_DDAn"        
+          CMD = "$CMD -WL $WL -WS $WS";                            
+          CMD = "$CMD -SELECT 0 1 0 0"                            # CT-DDA                           
+          CMD = "$CMD -CT_CH_list $(join(LL1," "))";              # all pairwise channels
+          CMD = "$CMD -WL_CT 2 -WS_CT 2";
+            
+          if Sys.iswindows()
+             run(Cmd(string.(split(CMD, " "))));
+          else
+             run(`sh -c $CMD`);
+          end
+  
+          rm(@sprintf("%s.info",FN_DDAn));     
+       end
+   end
    
+   @sync @distributed for n_N=1:N
+      FN_DDAn=@sprintf("%s%s%s__%03d.DDA",DDA_DIR,SL,replace(EDF_file,".edf" => ""),n_N);
+       
+       n=collect(1:DELTA) .+ (n_N-1)*DELTA; n=n[n.<=size(LIST,1)];
+       LL1=LIST[n,:]; LL1=vcat(LL1'...)';
+
+       if !isfile(join([FN_DDAn,"_CD_DDA_ST"]))
+          if Sys.iswindows()
+             if !isfile("run_DDA_ASCII.exe")
+                run(`cp run_DDA_ASCII run_DDA_ASCII.exe`);
+             end
+ 
              CMD=".\\run_DDA_ASCII.exe";
           else
              CMD="./run_DDA_ASCII";
           end
    
-          CMD = "$CMD -ASCII";                                 
+          CMD = "$CMD -EDF";                                 
           CMD = "$CMD -MODEL $(join(MODEL," "))"                    
           CMD = "$CMD -TAU $(join(TAU," "))"                        
           CMD = "$CMD -dm $dm -order $DDAorder -nr_tau $nr_delays"    
-          CMD = "$CMD -DATA_FN $FN_DATA -OUT_FN $FN_DDA"        
+          CMD = "$CMD -DATA_FN $FN_DATA -OUT_FN $FN_DDAn"        
           CMD = "$CMD -WL $WL -WS $WS";                            
-          CMD = "$CMD -SELECT 1 0 0 0";                               # ST-DDA               
+          CMD = "$CMD -SELECT 0 0 1 0";                           # CD-DDA
+          CMD = "$CMD -PAIRS $(join(LL1," "))";                   # all pairwise channels
         
           if Sys.iswindows()
              run(Cmd(string.(split(CMD, " "))));
           else
              run(`sh -c $CMD`);
           end
-   
-          rm(@sprintf("%s.info",FN_DDA));     
+  
+          rm(@sprintf("%s.info",FN_DDAn));     
        end
+   end
+
+   ST=readdlm(join([FN_DDA,"_ST"])); 
+   T=ST[:,1:2]; ST=ST[:,3:end];
+   WN=size(T,1);
+
+   #=   plot a1
+   a1=ST[:,1:4:NrCH*4];
+   heatmap(a1[:,setdiff(1:NrCH,54)]',legend=false,c=:jet,clims=(-0.25,0.4))
+   =#
    
-       @sync @distributed for n_N=1:N
-           FN_DDAn=@sprintf("%s%s%s__%s__%03d.DDA",DDA_DIR,SL,FN_part,NOISE_list[n_FN],n_N);
-       
-           n=collect(1:DELTA) .+ (n_N-1)*DELTA; n=n[n.<=size(LIST,1)];
-           LL1=LIST[n,:]; LL1=vcat(LL1'...)';
+   rhoS=ST[:,L_AF:L_AF:end];
+   ST = nothing; GC.gc();
    
-           if !isfile(join([FN_DDAn,"_CT"]))
-              if Sys.iswindows()
-                 if !isfile("run_DDA_ASCII.exe")
-                    run(`cp run_DDA_ASCII run_DDA_ASCII.exe`);
-                 end
-     
-                 CMD=".\\run_DDA_ASCII.exe";
-              else
-                 CMD="./run_DDA_ASCII";
-              end
+   E=fill(NaN,WN,NrCH*2,NrCH*2);
+   for n_N=1:N
+       @printf("%3d ",n_N)
+       FN_DDAn=@sprintf("%s%s%s__%03d.DDA",DDA_DIR,SL,replace(EDF_file,".edf" => ""),n_N);
    
-              CMD = "$CMD -ASCII";                                 
-              CMD = "$CMD -MODEL $(join(MODEL," "))"                    
-              CMD = "$CMD -TAU $(join(TAU," "))"                        
-              CMD = "$CMD -dm $dm -order $DDAorder -nr_tau $nr_delays"    
-              CMD = "$CMD -DATA_FN $FN_DATA -OUT_FN $FN_DDAn"        
-              CMD = "$CMD -WL $WL -WS $WS";                            
-              CMD = "$CMD -SELECT 0 1 0 0"                            # CT-DDA                           
-              CMD = "$CMD -CT_CH_list $(join(LL1," "))";              # all pairwise channels
-              CMD = "$CMD -WL_CT 2 -WS_CT 2";
-            
-              if Sys.iswindows()
-                 run(Cmd(string.(split(CMD, " "))));
-              else
-                 run(`sh -c $CMD`);
-              end
-      
-              rm(@sprintf("%s.info",FN_DDAn));     
-           end
+       n=collect(1:DELTA) .+ (n_N-1)*DELTA; n=n[n.<=size(LIST,1)];
+       LL1=LIST[n,:] .- CH[1] .+ 1;
+   
+       CT=readdlm(join([FN_DDAn,"_CT"]));
+       CT=CT[:,3:end];
+       CT=CT[:,L_AF:L_AF:end];
+   
+       for l=1:size(LL1,1)
+           ch1=LL1[l,1];ch2=LL1[l,2];
+           E[:,ch1,ch2] = abs.( dropdims(mean(rhoS[:,[ch1,ch2]],dims=2),dims=2) ./ CT[:,l] .- 1 );
+           E[:,ch2,ch1] = E[:,ch1,ch2];
        end
-   
-       @sync @distributed for n_N=1:N
-           FN_DDAn=@sprintf("%s%s%s__%s__%03d.DDA",DDA_DIR,SL,FN_part,NOISE_list[n_FN],n_N);
+       CT = nothing; GC.gc();
+   end
+   @printf("\n");
        
-           n=collect(1:DELTA) .+ (n_N-1)*DELTA; n=n[n.<=size(LIST,1)];
-           LL1=LIST[n,:]; LL1=vcat(LL1'...)';
-
-           if !isfile(join([FN_DDAn,"_CD_DDA_ST"]))
-              if Sys.iswindows()
-                 if !isfile("run_DDA_ASCII.exe")
-                    run(`cp run_DDA_ASCII run_DDA_ASCII.exe`);
-                 end
-     
-                 CMD=".\\run_DDA_ASCII.exe";
-              else
-                 CMD="./run_DDA_ASCII";
-              end
+   C=fill(NaN,WN,NrCH*2,NrCH*2);
+   for n_N=1:N
+       @printf("%3d ",n_N)
+       FN_DDAn=@sprintf("%s%s%s__%03d.DDA",DDA_DIR,SL,replace(EDF_file,".edf" => ""),n_N);
    
-              CMD = "$CMD -ASCII";                                 
-              CMD = "$CMD -MODEL $(join(MODEL," "))"                    
-              CMD = "$CMD -TAU $(join(TAU," "))"                        
-              CMD = "$CMD -dm $dm -order $DDAorder -nr_tau $nr_delays"    
-              CMD = "$CMD -DATA_FN $FN_DATA -OUT_FN $FN_DDAn"        
-              CMD = "$CMD -WL $WL -WS $WS";                            
-              CMD = "$CMD -SELECT 0 0 1 0";                           # CD-DDA
-              CMD = "$CMD -PAIRS $(join(LL1," "))";                   # all pairwise channels
-            
-              if Sys.iswindows()
-                 run(Cmd(string.(split(CMD, " "))));
-              else
-                 run(`sh -c $CMD`);
-              end
-      
-              rm(@sprintf("%s.info",FN_DDAn));     
-           end
+       n=collect(1:DELTA) .+ (n_N-1)*DELTA; n=n[n.<=size(LIST,1)];
+       LL1=LIST[n,:] .- CH[1] .+ 1;
+   
+       CD=readdlm(join([FN_DDAn,"_CD_DDA_ST"]));
+       CD=CD[:,3:end];
+       CD=reshape(CD,WN,2,size(LL1,1));
+   
+       for l=1:size(LL1,1)
+           ch1=LL1[l,1];ch2=LL1[l,2];
+           C[:,ch1,ch2] = CD[:,2,l];
+           C[:,ch2,ch1] = CD[:,1,l];
        end
+       CD = nothing; GC.gc();
+   end
+   @printf("\n\n");
 
-
-
-       ST=readdlm(join([FN_DDA,"_ST"])); 
-       T=ST[:,1:2]; ST=ST[:,3:end];
-       WN=size(T,1);
-   
-       rhoS=ST[:,L_AF:L_AF:end];
-       ST = nothing; GC.gc();
-   
-       E=fill(NaN,WN,NrCH,NrCH);
-       for n_N=1:N
-           @printf("%3d ",n_N)
-           FN_DDAn=@sprintf("%s%s%s__%s__%03d.DDA",DDA_DIR,SL,FN_part,NOISE_list[n_FN],n_N);
-       
-           n=collect(1:DELTA) .+ (n_N-1)*DELTA; n=n[n.<=size(LIST,1)];
-           LL1=LIST[n,:] .- CH[1] .+ 1;
-       
-           CT=readdlm(join([FN_DDAn,"_CT"]));
-           CT=CT[:,3:end];
-           CT=CT[:,L_AF:L_AF:end];
-       
-           for l=1:size(LL1,1)
-               ch1=LL1[l,1];ch2=LL1[l,2];
-               E[:,ch1,ch2] = abs.( dropdims(mean(rhoS[:,[ch1,ch2]],dims=2),dims=2) ./ CT[:,l] .- 1 );
-               E[:,ch2,ch1] = E[:,ch1,ch2];
-           end
-           CT = nothing; GC.gc();
-       end
-       @printf("\n");
-       
-       C=fill(NaN,WN,NrCH,NrCH);
-       for n_N=1:N
-           @printf("%3d ",n_N)
-           FN_DDAn=@sprintf("%s%s%s__%s__%03d.DDA",DDA_DIR,SL,FN_part,NOISE_list[n_FN],n_N);
-       
-           n=collect(1:DELTA) .+ (n_N-1)*DELTA; n=n[n.<=size(LIST,1)];
-           LL1=LIST[n,:] .- CH[1] .+ 1;
-       
-           CD=readdlm(join([FN_DDAn,"_CD_DDA_ST"]));
-           CD=CD[:,3:end];
-           CD=reshape(CD,WN,2,size(LL1,1));
-       
-           for l=1:size(LL1,1)
-               ch1=LL1[l,1];ch2=LL1[l,2];
-               C[:,ch1,ch2] = CD[:,2,l];
-               C[:,ch2,ch1] = CD[:,1,l];
-           end
-           CD = nothing; GC.gc();
-       end
-       @printf("\n\n");
-    
-       @save FN_ALL C E rhoS T WN
-       E = nothing; C = nothing; GC.gc();
-    end
-
+   @save FN_ALL C E rhoS T WN
+   E = nothing; C = nothing; GC.gc();
 end
 
-
-n_FN=1;
-    
-FN_ALL = @sprintf("%s%s%s__%s.jld2",DDA_DIR,SL,FN_part,NOISE_list[n_FN]);
 @load FN_ALL C E T WN ;
-C1 = C .* 1;
-E1 = E .* 1;
+C1 = C[:,1:NrCH,1:NrCH]; 
+E1 = E[:,1:NrCH,1:NrCH]; 
+C2 = C[:,NrCH+1:end,NrCH+1:end]; 
+E2 = E[:,NrCH+1:end,NrCH+1:end]; 
 E = nothing; C = nothing; GC.gc();
 
-n_FN=2;
-    
-FN_ALL = @sprintf("%s%s%s__%s.jld2",DDA_DIR,SL,FN_part,NOISE_list[n_FN]);
-@load FN_ALL C E T WN ;
-C2 = C .* 1;
-E2 = E .* 1;
-E = nothing; C = nothing; GC.gc();
 
 
 
@@ -301,7 +263,6 @@ SG = plot(size=(1000,1000),layout=(2,2));
 
 heatmap!(SG,subplot=1,
          t,1:length(IND),c1',
-         #c=cgrad(:jet,scale=log10),
          c=:jet,
          xtickfont=font(12), ytickfont=font(12),
          colorbar = true,clims=(0.1,0.06)
@@ -355,3 +316,5 @@ heatmap!(SG,subplot=4,
 hline!(SG,subplot=4,[cumsum(L_e_list[:]) .* (length(CHs)-1) .+ 0.5],legend=false,c=:black,linewidth=2)
 heatmap!(SG,subplot=4,yticks=(Y,eLABEL[e_NotZero][SEQ]),xlabel="time [min]",clims=(0.01,0.06))
 display(SG)
+
+
