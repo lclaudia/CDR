@@ -3,8 +3,6 @@
 
 @everywhere include("DDAfunctions.jl");
 
-@everywhere SL="/";
-
 EDF_file = "patient1_S05__01_03.edf";
 
 NrCH=78;
