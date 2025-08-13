@@ -10,6 +10,7 @@ import Pkg; Pkg.add("LaTeXStrings")
 import Pkg; Pkg.add("Graphs")
 import Pkg; Pkg.add("GraphRecipes")
 import Pkg; Pkg.add("Colors")
+import Pkg; Pkg.add("JLD2")
 =#
 
 using Plots
@@ -22,7 +23,7 @@ using Combinatorics
 using LinearAlgebra
 using Graphs
 using GraphRecipes
-
+using JLD2
 
 if Sys.iswindows()
    SL="\\";

@@ -3,6 +3,8 @@
 
 @everywhere include("DDAfunctions.jl");
 
+using JLD2
+
 EDF_file = "patient1_S05__01_03.edf";
 
 NrCH=78;
@@ -191,31 +193,24 @@ if !isfile(FN_ALL)
 end
 
 @load FN_ALL C E T WN ;
-C1 = C[:,1:NrCH,1:NrCH]; 
-E1 = E[:,1:NrCH,1:NrCH]; 
-C2 = C[:,NrCH+1:end,NrCH+1:end]; 
-E2 = E[:,NrCH+1:end,NrCH+1:end]; 
+C1 = C[:,1:NrCH,1:NrCH];          
+E1 = E[:,1:NrCH,1:NrCH];          
+C2 = C[:,NrCH+1:end,NrCH+1:end];  
+E2 = E[:,NrCH+1:end,NrCH+1:end];  
 E = nothing; C = nothing; GC.gc();
-
-
-
-
 
 eLABEL=["LFP"; "LCG"; "LAT"; "LMT"; "LHP"; "LOC"; "LTH"; "LSU"; 
         "RFP"; "RCG"; "RAT"; "RMT"; "RHP"; "ROC"; "RTH"; "RSU"]
 
 e_list = [
        [34:38; 15:22; 25:30],      #LFP
-
        [31:33; 23; 24],            #LCG
-
        [3:5; 10:14],               #LAT
        Int[],  
        [1:2; 7:9],                 #LHP
        Int[],  
        Int[],  
        Int[], 
-          
        [55:62; 71:78; 63; 65:70],  #RFP
        Int[],  
        [40:44; 50:52],             #RAT
@@ -262,7 +257,6 @@ Y = (Y .- [0;diff(Y)./2])[2:end];
 heatmap!(SG,subplot=1,yticks=(Y,eLABEL[e_NotZero][SEQ]),xlabel="time [min]",clims=(0.01,0.06))
 display(SG)
 
-
 heatmap!(SG,subplot=2,
          t,1:length(IND),c2',
          c=:jet,
@@ -273,12 +267,10 @@ hline!(SG,subplot=2,[cumsum(L_e_list[:]) .* (length(CHs)-1) .+ 0.5],legend=false
 heatmap!(SG,subplot=2,yticks=(Y,eLABEL[e_NotZero][SEQ]),xlabel="time [min]",clims=(0.01,0.06))
 display(SG)
 
-
 ALPHA = BETA .* 1;
 ALPHA[ALPHA .>= 0] .= 0;
 ALPHA[ALPHA .< 0]  .= 1;
 ALPHA[ALPHA .== 0] .= NaN;
-
 heatmap!(SG,subplot=3,
          t,1:length(IND),(c1 .* ALPHA)',
          c=:jet,
@@ -289,13 +281,10 @@ hline!(SG,subplot=3,[cumsum(L_e_list[:]) .* (length(CHs)-1) .+ 0.5],legend=false
 heatmap!(SG,subplot=3,yticks=(Y,eLABEL[e_NotZero][SEQ]),xlabel="time [min]",clims=(0.01,0.06))
 display(SG)
 
-
-
 ALPHA = BETA .* 1;
 ALPHA[ALPHA .<= 0] .= 0;
 ALPHA[ALPHA .> 0]  .= 1;
 ALPHA[ALPHA .== 0] .= NaN;
-
 heatmap!(SG,subplot=4,
          t,1:length(IND),(c1 .* ALPHA)',
          c=:jet,
