@@ -1,16 +1,7 @@
 # julia -p10
 # /cnl/xaos/julia-1.11.1/bin/julia -p50
 
-@everywhere MacSalk="SALK";
-
-if MacSalk=="SALK"
-   @everywhere pfad_home="/home/claudia/";
-end
-if MacSalk=="MAC"
-   @everywhere pfad_home="/Users/claudia/";
-end
-
-@everywhere include(join([pfad_home "/TOOLS/DDAfunctions.jl"]));
+@everywhere include("DDAfunctions.jl");
 
 @everywhere SL="/";
 
