@@ -3,13 +3,11 @@
 
 @everywhere include("DDAfunctions.jl");
 
-using JLD2
-
 EDF_file = "patient1_S05__01_03.edf";
 
 NrCH=78;
 CH=1:NrCH;
-ONSET_CH = sort([45:52; 85:92; 61:68; 101:108] .- 30);
+ONSET_CH = sort([15:22; 55:62; 31:38; 71:78]);
 
 TAU=[7 10]; TM = maximum(TAU); dm=4;
 WL=500; WS=50;
@@ -20,7 +18,7 @@ DDAmodel=[[0 0 0 1];
           [1 1 1 1]];
 (MODEL, L_AF, DDAorder)=make_MODEL(DDAmodel);                         # DDA model
 
-DDA_DIR="DDA_patient1"; dir_exist(DDA_DIR);
+DDA_DIR="DDA_patient1_AsciiEdf"; dir_exist(DDA_DIR);
 
 LIST=reduce(hcat,collect(combinations(CH,2)))';                       # original data
 LIST=vcat(LIST, LIST .+ NrCH);                                        # data with added noise
@@ -35,13 +33,13 @@ if !isfile(FN_ALL)
 
    if !isfile(join([FN_DDA,"_ST"]))
       if Sys.iswindows()
-         if !isfile("run_DDA_ASCII.exe")
-            run(`cp run_DDA_ASCII run_DDA_ASCII.exe`);
+         if !isfile("run_DDA_AsciiEdf.exe")
+            run(`cp run_DDA_AsciiEdf run_DDA_AsciiEdf.exe`);
          end
 
-         CMD=".\\run_DDA_ASCII.exe";
+         CMD=".\\run_DDA_AsciiEdf.exe";
       else
-         CMD="./run_DDA_ASCII";
+         CMD="./run_DDA_AsciiEdf";
       end
    
       CMD = "$CMD -EDF";                                 
@@ -62,43 +60,6 @@ if !isfile(FN_ALL)
    end
    
    @sync @distributed for n_N=1:N
-       FN_DDAn=@sprintf("%s%s%s__%03d.DDA",DDA_DIR,SL,replace(EDF_file,".edf" => ""),n_N);
-       
-       n=collect(1:DELTA) .+ (n_N-1)*DELTA; n=n[n.<=size(LIST,1)];
-       LL1=LIST[n,:]; LL1=vcat(LL1'...)';
-   
-       if !isfile(join([FN_DDAn,"_CT"]))
-          if Sys.iswindows()
-             if !isfile("run_DDA_ASCII.exe")
-                run(`cp run_DDA_ASCII run_DDA_ASCII.exe`);
-             end
- 
-             CMD=".\\run_DDA_ASCII.exe";
-          else
-             CMD="./run_DDA_ASCII";
-          end
-
-          CMD = "$CMD -EDF";                                 
-          CMD = "$CMD -MODEL $(join(MODEL," "))"                    
-          CMD = "$CMD -TAU $(join(TAU," "))"                        
-          CMD = "$CMD -dm $dm -order $DDAorder -nr_tau $nr_delays"    
-          CMD = "$CMD -DATA_FN $FN_DATA -OUT_FN $FN_DDAn"        
-          CMD = "$CMD -WL $WL -WS $WS";                            
-          CMD = "$CMD -SELECT 0 1 0 0"                            # CT-DDA                           
-          CMD = "$CMD -CT_CH_list $(join(LL1," "))";              # all pairwise channels
-          CMD = "$CMD -WL_CT 2 -WS_CT 2";
-            
-          if Sys.iswindows()
-             run(Cmd(string.(split(CMD, " "))));
-          else
-             run(`sh -c $CMD`);
-          end
-  
-          rm(@sprintf("%s.info",FN_DDAn));     
-       end
-   end
-   
-   @sync @distributed for n_N=1:N
       FN_DDAn=@sprintf("%s%s%s__%03d.DDA",DDA_DIR,SL,replace(EDF_file,".edf" => ""),n_N);
        
        n=collect(1:DELTA) .+ (n_N-1)*DELTA; n=n[n.<=size(LIST,1)];
@@ -106,13 +67,13 @@ if !isfile(FN_ALL)
 
        if !isfile(join([FN_DDAn,"_CD_DDA_ST"]))
           if Sys.iswindows()
-             if !isfile("run_DDA_ASCII.exe")
-                run(`cp run_DDA_ASCII run_DDA_ASCII.exe`);
+             if !isfile("run_DDA_AsciiEdf.exe")
+                run(`cp run_DDA_AsciiEdf run_DDA_AsciiEdf.exe`);
              end
  
-             CMD=".\\run_DDA_ASCII.exe";
+             CMD=".\\run_DDA_AsciiEdf.exe";
           else
-             CMD="./run_DDA_ASCII";
+             CMD="./run_DDA_AsciiEdf";
           end
    
           CMD = "$CMD -EDF";                                 
@@ -121,8 +82,9 @@ if !isfile(FN_ALL)
           CMD = "$CMD -dm $dm -order $DDAorder -nr_tau $nr_delays"    
           CMD = "$CMD -DATA_FN $FN_DATA -OUT_FN $FN_DDAn"        
           CMD = "$CMD -WL $WL -WS $WS";                            
-          CMD = "$CMD -SELECT 0 0 1 0";                           # CD-DDA
-          CMD = "$CMD -PAIRS $(join(LL1," "))";                   # all pairwise channels
+          CMD = "$CMD -SELECT 0 1 1 0";                           # CT-DDA and CD-DDA
+          CMD = "$CMD -CH_list $(join(LL1," "))";                 # all pairwise channels
+          CMD = "$CMD -WL_CT 2 -WS_CT 2";                         # pairwise channels for CT-DDA
         
           if Sys.iswindows()
              run(Cmd(string.(split(CMD, " "))));

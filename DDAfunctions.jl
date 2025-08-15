@@ -25,6 +25,7 @@ using Graphs
 using GraphRecipes
 using JLD2
 
+
 if Sys.iswindows()
    SL="\\";
 else
@@ -269,13 +270,13 @@ function RunDDA(PF,NOISE,SNRadd_list)
 
       if !isfile(join([FN_DDA,"_ST"]))
          if Sys.iswindows()
-            if !isfile("run_DDA_ASCII.exe")
-               run(`cp run_DDA_ASCII run_DDA_ASCII.exe`);
+            if !isfile("run_DDA_AsciiEdf.exe")
+               run(`cp run_DDA_AsciiEdf run_DDA_AsciiEdf.exe`);
             end
 
-            CMD=".\\run_DDA_ASCII.exe";
+            CMD=".\\run_DDA_AsciiEdf.exe";
          else
-            CMD="./run_DDA_ASCII";
+            CMD="./run_DDA_AsciiEdf";
          end
          CMD = "$CMD -ASCII";   
          CMD = "$CMD -MODEL $(join(MODEL," "))";  
@@ -283,37 +284,9 @@ function RunDDA(PF,NOISE,SNRadd_list)
          CMD = "$CMD -dm $dm -order $DDAorder -nr_tau $nr_delays";  
          CMD = "$CMD -DATA_FN $FN_data -OUT_FN $FN_DDA";   
          CMD = "$CMD -WL $WL -WS $WS";             
-         CMD = "$CMD -SELECT 1 1 0 0";             
+         CMD = "$CMD -SELECT 1 1 1 0";             
          CMD = "$CMD -WL_CT 2 -WS_CT 2";            
-         CMD = "$CMD -CT_CH_list $(join(LL1," "))";  
-         
-         if Sys.iswindows()
-            run(Cmd(string.(split(CMD, " "))));
-         else
-            run(`sh -c $CMD`);
-         end
- 
-         rm(@sprintf("%s.info",FN_DDA));     
-      end
-
-      if !isfile(join([FN_DDA,"_CD_DDA_ST"]))
-         if Sys.iswindows()
-            if !isfile("run_DDA_ASCII.exe")
-               run(`cp run_DDA_ASCII run_DDA_ASCII.exe`);
-            end
-
-            CMD=".\\run_DDA_ASCII.exe";
-         else
-            CMD="./run_DDA_ASCII";
-         end
-         CMD = "$CMD -ASCII";   
-         CMD = "$CMD -MODEL $(join(MODEL," "))";   
-         CMD = "$CMD -TAU $(join(TAU," "))";      
-         CMD = "$CMD -dm $dm -order $DDAorder -nr_tau $nr_delays";  
-         CMD = "$CMD -DATA_FN $FN_data -OUT_FN $FN_DDA";           
-         CMD = "$CMD -WL $WL -WS $WS";           
-         CMD = "$CMD -SELECT 0 0 1 0";          
-         CMD = "$CMD -PAIRS $(join(LL1," "))"; 
+         CMD = "$CMD -CH_list $(join(LL1," "))";  
          
          if Sys.iswindows()
             run(Cmd(string.(split(CMD, " "))));
