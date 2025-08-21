@@ -60,7 +60,7 @@ MOD_par_add=repeat([epsilon -epsilon],size(FromTo,1),1)'[:]';         # MOD_par 
 TAU=[32 9]; TM=maximum(TAU); dm=4;                                    # DDA parameters
 WL=4000;WS=2000;                                                      # window length and window shift for DDA 
 WN=100;                                                               # assign window number 
-LL=WS*(WN-1)+WL+TM+2*dm;                                              # ajust integration length
+LL=WS*(WN-1)+WL+TM+2*dm-1;                                            # ajust integration length
 
 TRANS=20000;                                                          # transient
 dt=0.05;                                                              # integration step size
@@ -82,9 +82,7 @@ if !isfile(FN)
 end
 
 SNRadd_list= 20:-1:0;
-
 MakeDataNoise(PF,noise,SNRadd_list);                                  # add noise
-
 
 DDA_DIR="DDA"; dir_exist(DDA_DIR);                                    # DDA folder
 
@@ -100,7 +98,6 @@ LL1=vcat(LIST...)';
 LIST=reduce(hcat,LIST)';                                              # pairwise combinations
 
 RunDDA(PF,NOISE,SNRadd_list);                                         # run DDA
-
 
 (C,E)=makeCE(PF,NOISE,SNRadd_list);                                   # read outputs
 
