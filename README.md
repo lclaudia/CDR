@@ -1,6 +1,6 @@
 This software reproduces the paper Causal Dynamic Resonance submitted to PNAS.
 
-It was tested on linux, mac, and windows and julia 1.11.15 (https://julialang.org/).
+It was tested on linux, mac, and windows and julia 1.11.5 (https://julialang.org/).
 
 Use it at your own risk.
 
