@@ -107,14 +107,68 @@ function make_MOD_nr(SYST,NrSyst)
    return MOD_nr,DIM,order,P
 
 end
-                    
-function MakeDataNoNoise(PF,FromTo)
+
+
+function integrate_ODE_general_BIG(MOD_nr,MOD_par,dt,L,DIM,ODEorder,X0,FNout,CH_list,DELTA,TRANS=nothing)
+  if TRANS===nothing
+     TRANS=0;
+  end
+
+  if Sys.iswindows()
+     if !isfile("i_ODE_general_BIG.exe")
+        cp("i_ODE_general_BIG","i_ODE_general_BIG.exe");
+     end
+
+     CMD=".\\i_ODE_general_BIG.exe";
+  else
+     CMD="./i_ODE_general_BIG";
+  end
+
+  MOD_NR = join(MOD_nr, " ");
+  CMD = "$CMD -MODEL $MOD_NR";
+  MOD_PAR = join(MOD_par, " ");
+  CMD = "$CMD -PAR $MOD_PAR";
+  ANF=join(X0," ");
+  CMD = "$CMD -ANF $ANF";
+  CMD = "$CMD -dt $dt";
+  CMD = "$CMD -L $L";
+  CMD = "$CMD -DIM $DIM";
+  CMD = "$CMD -order $ODEorder";
+  if TRANS>0
+     CMD = "$CMD -TRANS $TRANS";
+  end
+  if length(FNout)>0
+     CMD = "$CMD -FILE $FNout";
+  end
+  CMD = "$CMD -DELTA $DELTA";
+  CMD = "$CMD -CH_list $(join(CH_list," "))";
+
+  if length(FNout)>0
+     if Sys.iswindows()
+        run(Cmd(string.(split(CMD, " "))));
+     else
+        run(`sh -c $CMD`);
+     end
+  else
+     if Sys.iswindows()
+       X = read(Cmd(string.(split(CMD, " "))),String);
+     else
+       X = read(`sh -c $CMD`,String);
+     end
+     X = split(strip(X), '\n');
+     X = hcat([parse.(Float64, split(row)) for row in X]...)';
+
+     return X
+  end
+end
+
+function MakeDataNoNoise(PF,FromTo,CH_list,DELTA)
   epsilon=0.15;  
 
   II=make_MOD_nr_Coupling(FromTo,DIM,P);  
   MOD_par_add=repeat([epsilon -epsilon],1,size(FromTo,1));
 
-  L1=WS*(WN-1)+WL+TM+2*dm; 
+  L1=WS*(WN-1)+WL+TM+2*dm-1; 
   TRANS=20000; dt=0.05;
 
   FN=@sprintf("%s%sCD_DDA_data_NoNoise__WL%d_WS%d_WN%d%s.ascii",
@@ -126,9 +180,8 @@ function MakeDataNoNoise(PF,FromTo)
                                  dt,                 
                                  L1*2,              
                                  DIM*NrSyst,ODEorder,X0,
+                                 FN,CH_list,DELTA,
                                  TRANS);               
-     X = X[1:2:end,1:3:end];     
-     writedlm(FN, map(number_to_string, X),' '); 
   end
 end                    
 
