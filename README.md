@@ -1,13 +1,10 @@
-This software reproduces the paper Causal Dynamic Resonance submitted to PNAS.
+This repository contains the code to reproduce the results for the paper *Causal Dynamic Resonance*, which was submitted to PNAS.
 
 It was tested on linux, mac, and windows and julia 1.11.5 (https://julialang.org/).
 
 Use it at your own risk.
 
-
-Software.pdf describes the code.
-
-
+A pdf description of the code is located in `Software.pdf`.
 
 In case you want to try the software on other data:
 
